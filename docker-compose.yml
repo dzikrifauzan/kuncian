@@ -1,0 +1,19 @@
+services:
+  kuncian:
+    build: .
+    image: kuncian:latest
+    container_name: kuncian
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      # Port di dalam container selalu 3000. Port di VPS diatur lewat PORT di .env.
+      PORT: "3000"
+      DATA_DIR: /data
+    ports:
+      # Hanya bisa diakses dari VPS itu sendiri. Nginx yang membuka ke internet.
+      - "127.0.0.1:${PORT:-3000}:3000"
+    volumes:
+      - kuncian-data:/data
+
+volumes:
+  kuncian-data:

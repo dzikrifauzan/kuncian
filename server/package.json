@@ -1,0 +1,19 @@
+{
+  "name": "kuncian-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Kotak surat rahasia berdua: pesan terkunci yang harus dipecahkan dulu sebelum dibaca.",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/index.js",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.16",
+    "web-push": "^3.6.7"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}
