@@ -49,7 +49,7 @@ Container hanya membuka port di `127.0.0.1`. Tambahkan blok `location` dari `dep
 nginx -t && systemctl reload nginx
 ```
 
-Setelah itu buka `APP_URL`, daftar sebagai akun pertama, dan kamu dapat **kode undangan**. Kasih kode itu ke pasanganmu. Setelah dia mendaftar, pendaftaran otomatis tertutup (`MAX_USERS=2`).
+Setelah itu buka `APP_URL`, daftar sebagai akun pertama, dan kamu dapat **kode undangan**. Kasih kode itu ke pasanganmu. Pasanganmu daftar lewat tab **Aku punya kode**. Siapa saja boleh daftar, tapi tiap kode cuma bisa dipakai 2 akun, jadi satu pasangan tidak bisa kemasukan orang ketiga. Batasi total akun lewat `MAX_USERS` kalau perlu.
 
 **Penting di Nginx:** jalur `/api/events` harus `proxy_buffering off` (sudah ada di contoh). Kalau tidak, pesan baru baru muncul setelah beberapa saat.
 
