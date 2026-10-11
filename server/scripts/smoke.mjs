@@ -89,6 +89,25 @@ try {
   assert.equal(r.data.partner, null);
   ok('pairing berdua jalan, pasangan ketiga ditolak masuk, pasangan baru terpisah');
 
+  {
+    const D = client('Salah daftar');
+    const E = client('Pemilik kode');
+    let x = await D.call('POST', '/api/auth/register', { username: 'dodi', email: 'dodi@example.com', password: 'passwordku4', displayName: 'Dodi' });
+    assert.equal(x.status, 200);
+    x = await E.call('POST', '/api/auth/register', { username: 'erna', email: 'erna@example.com', password: 'passwordku5', displayName: 'Erna' });
+    const ecode = x.data.inviteCode;
+    x = await D.call('POST', '/api/couple/join', { code: x.data.inviteCode === ecode ? 'ZZZZZZ' : '' });
+    assert.equal(x.status, 400, 'kode salah ditolak');
+    x = await D.call('POST', '/api/couple/join', { code });
+    assert.equal(x.status, 400, 'kode pasangan yang sudah penuh ditolak');
+    x = await D.call('POST', '/api/couple/join', { code: ecode });
+    assert.equal(x.status, 200);
+    assert.equal(x.data.partner.displayName, 'Erna');
+    x = await E.call('GET', '/api/me');
+    assert.equal(x.data.partner.displayName, 'Dodi');
+    ok('gabung ke pasangan lewat kode setelah daftar');
+  }
+
   r = await A.call('GET', '/api/me');
   assert.equal(r.data.partner.displayName, 'Rara');
   assert.equal(r.data.inviteCode, null);

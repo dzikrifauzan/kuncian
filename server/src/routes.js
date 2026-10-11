@@ -209,6 +209,32 @@ export function buildRoutes() {
 
   add('GET', '/api/me', { auth: true }, (c) => mePayload(c.user));
 
+  // Gabung ke pasangan lewat kode undangan (untuk yang tadi daftar tanpa kode).
+  add('POST', '/api/couple/join', { auth: true, limit: authLimit('join', 10, 3600_000) }, (c) => {
+    const code = clip(c.body?.code, 12).toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!code) throw new HttpError(400, 'Isi kode undangan dari pasanganmu.');
+    const me = c.user;
+    tx(() => {
+      if (getPartner(me)) throw new HttpError(400, 'Kamu sudah berpasangan.');
+      const target = db.prepare('SELECT id FROM couples WHERE invite_code = ?').get(code);
+      if (!target) throw new HttpError(400, 'Kode undangan tidak ketemu. Cek lagi ke pasanganmu.');
+      if (target.id === me.couple_id) throw new HttpError(400, 'Itu kode milikmu sendiri. Berikan ke pasanganmu, bukan diisi di sini.');
+      if (db.prepare('SELECT COUNT(*) AS n FROM users WHERE couple_id = ?').get(target.id).n >= 2) {
+        throw new HttpError(400, 'Kode ini sudah dipakai berdua. Satu kode cuma untuk satu pasangan.');
+      }
+      const used =
+        db.prepare('SELECT COUNT(*) AS n FROM messages WHERE couple_id = ?').get(me.couple_id).n +
+        db.prepare('SELECT COUNT(*) AS n FROM codebook WHERE couple_id = ?').get(me.couple_id).n;
+      if (used > 0) throw new HttpError(400, 'Akunmu sudah punya pesan atau isi buku sandi, jadi tidak bisa dipindah ke pasangan lain.');
+      db.prepare('UPDATE users SET couple_id = ? WHERE id = ?').run(target.id, me.id);
+      db.prepare('DELETE FROM couples WHERE id = ?').run(me.couple_id);
+    });
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(me.id);
+    const partner = getPartner(user);
+    if (partner) notifyUser(partner.id, { title: config.appName, body: `${user.display_name} sudah bergabung. Sekarang kalian bisa saling kirim pesan.`, url: '/', tag: 'joined' });
+    return mePayload(user);
+  });
+
   add('PATCH', '/api/me', { auth: true }, (c) => {
     const b = c.body || {};
     if (b.displayName !== undefined) {

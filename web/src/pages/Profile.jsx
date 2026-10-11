@@ -133,6 +133,33 @@ function PasswordForm() {
   );
 }
 
+function JoinForm() {
+  const { setMe } = useApp();
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      setMe(await api.post('/couple/join', { code }));
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  };
+  return (
+    <form className="stack tight" onSubmit={submit} style={{ marginTop: 12 }}>
+      <Field id="join-code" label="Atau isi kode dari pasanganmu" help="Dipakai kalau pasanganmu yang daftar duluan.">
+        <input id="join-code" type="text" autoCapitalize="characters" autoCorrect="off" maxLength={12} required value={code} onChange={(e) => { setCode(e.target.value); setError(''); }} />
+      </Field>
+      {error ? <p className="error" role="alert">{error}</p> : null}
+      <button className="btn block" disabled={busy}>{busy ? 'Menyambungkan…' : 'Sambungkan'}</button>
+    </form>
+  );
+}
+
 export default function Profile() {
   const { me, setMe } = useApp();
   const nav = useNav();
@@ -173,8 +200,10 @@ export default function Profile() {
 
       {!me.partner ? (
         <section className="card stack tight">
-          <strong>Kode undangan</strong>
+          <strong>Kode undangan kamu</strong>
+          <p className="small muted">Kasih kode ini ke pasanganmu. Dia mengisinya saat daftar, atau di Profil kalau sudah punya akun.</p>
           <span className="code">{me.inviteCode}</span>
+          <JoinForm />
         </section>
       ) : null}
 
