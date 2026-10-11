@@ -59,8 +59,8 @@ export function Login() {
       </form>
       <div className="row between small">
         <Link className="link" to="/lupa">Lupa password?</Link>
-        {pub.registrationOpen ? <Link className="link" to="/daftar">Daftar</Link> : null}
       </div>
+      {pub.registrationOpen ? <Link className="btn block" to="/daftar">Belum punya akun? Daftar</Link> : null}
     </main>
   );
 }
@@ -69,12 +69,13 @@ export function Register() {
   const { setMe, pub, appName } = useApp();
   const nav = useNav();
   const f = useForm({ displayName: '', username: '', email: '', password: '', inviteCode: '' });
-  const needsCode = pub.needsInviteCode;
+  const [hasCode, setHasCode] = useState(false);
 
   const submit = (e) => {
     e.preventDefault();
     f.run(async (v) => {
-      setMe(await api.post('/auth/register', v));
+      if (hasCode && !v.inviteCode.trim()) throw new Error('Isi kode undangan dari pasanganmu.');
+      setMe(await api.post('/auth/register', { ...v, inviteCode: hasCode ? v.inviteCode : '' }));
       nav('/', { replace: true });
     });
   };
@@ -84,7 +85,7 @@ export function Register() {
       <main className="screen auth">
         <Brand name={appName} />
         <h1>Pendaftaran sudah ditutup</h1>
-        <p className="muted">Aplikasi ini cuma untuk berdua, dan keduanya sudah terdaftar.</p>
+        <p className="muted">Aplikasi ini sedang tidak menerima akun baru.</p>
         <Link className="btn block" to="/">Kembali ke halaman masuk</Link>
       </main>
     );
@@ -93,12 +94,16 @@ export function Register() {
   return (
     <main className="screen auth">
       <Brand name={appName} />
-      <h1>{pub.firstUser ? 'Bikin akun pertama' : 'Gabung ke pasanganmu'}</h1>
+      <h1>Bikin akun</h1>
       <p className="muted">
-        {pub.firstUser
-          ? 'Setelah daftar, kamu dapat kode undangan untuk dikasih ke pasanganmu.'
-          : 'Minta kode undangan dari pasanganmu, lalu isi di bawah.'}
+        {hasCode
+          ? 'Masukkan kode undangan dari pasanganmu supaya akun kalian berpasangan.'
+          : 'Kamu yang daftar duluan? Setelah daftar, kamu dapat kode undangan untuk dikasih ke pasanganmu.'}
       </p>
+      <div className="seg" role="group" aria-label="Jenis pendaftaran">
+        <button type="button" aria-pressed={!hasCode} onClick={() => setHasCode(false)}>Aku duluan</button>
+        <button type="button" aria-pressed={hasCode} onClick={() => setHasCode(true)}>Aku punya kode</button>
+      </div>
       <form className="stack" onSubmit={submit}>
         <Field id="f-displayName" label="Nama panggilan" help="Ini yang tampil di pesan dan notifikasi.">
           <input type="text" autoComplete="nickname" maxLength={24} required {...f.bind('displayName')} />
@@ -112,8 +117,8 @@ export function Register() {
         <Field id="f-password" label="Password" help="Minimal 8 karakter.">
           <input type="password" autoComplete="new-password" minLength={8} required {...f.bind('password')} />
         </Field>
-        {needsCode ? (
-          <Field id="f-inviteCode" label="Kode undangan">
+        {hasCode ? (
+          <Field id="f-inviteCode" label="Kode undangan" help="Satu kode cuma untuk satu pasangan.">
             <input type="text" autoCapitalize="characters" autoCorrect="off" maxLength={12} required {...f.bind('inviteCode')} />
           </Field>
         ) : null}

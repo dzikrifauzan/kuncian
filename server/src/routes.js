@@ -112,9 +112,7 @@ export function buildRoutes() {
     const n = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
     return {
       appName: config.appName,
-      registrationOpen: n < config.maxUsers,
-      firstUser: n === 0,
-      needsInviteCode: n > 0 && !config.allowNewCouples,
+      registrationOpen: !config.maxUsers || n < config.maxUsers,
     };
   });
 
@@ -135,16 +133,15 @@ export function buildRoutes() {
     try {
       const userId = tx(() => {
         const count = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
-        if (count >= config.maxUsers) throw new HttpError(403, 'Pendaftaran sudah ditutup. Aplikasi ini cuma untuk berdua.');
+        if (config.maxUsers && count >= config.maxUsers) throw new HttpError(403, 'Pendaftaran sudah ditutup.');
         let coupleId;
-        if (count === 0 || (!code && config.allowNewCouples)) {
+        if (!code) {
           coupleId = Number(db.prepare('INSERT INTO couples (invite_code, created_at) VALUES (?, ?)').run(inviteCode(), Date.now()).lastInsertRowid);
         } else {
-          if (!code) throw new HttpError(400, 'Masukkan kode undangan dari pasanganmu.');
           const couple = db.prepare('SELECT id FROM couples WHERE invite_code = ?').get(code);
           if (!couple) throw new HttpError(400, 'Kode undangan tidak ketemu. Cek lagi ke pasanganmu.');
           if (db.prepare('SELECT COUNT(*) AS n FROM users WHERE couple_id = ?').get(couple.id).n >= 2) {
-            throw new HttpError(400, 'Kode ini sudah dipakai berdua.');
+            throw new HttpError(400, 'Kode ini sudah dipakai berdua. Satu kode cuma untuk satu pasangan.');
           }
           coupleId = couple.id;
         }

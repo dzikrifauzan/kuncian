@@ -58,7 +58,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    api.get('/public').then(setPub).catch(() => setPub({ appName: 'Kuncian', registrationOpen: false, firstUser: false, needsInviteCode: true }));
+    api.get('/public').then(setPub).catch(() => setPub({ appName: 'Kuncian', registrationOpen: true }));
     refresh();
   }, [refresh]);
 

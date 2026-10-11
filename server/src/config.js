@@ -14,9 +14,8 @@ export const config = {
   appName: (env.APP_NAME || 'Kuncian').trim().slice(0, 30) || 'Kuncian',
   dataDir: env.DATA_DIR || './data',
   publicDir: env.PUBLIC_DIR || (fs.existsSync(bundledPublic) ? bundledPublic : devPublic),
-  // Pendaftaran otomatis tertutup kalau jumlah akun sudah segini.
-  maxUsers: Number(env.MAX_USERS) || 2,
-  allowNewCouples: env.ALLOW_NEW_COUPLES === 'true',
+  // Batas total akun (0 = tanpa batas). Tiap pasangan tetap maksimal 2 akun.
+  maxUsers: Number(env.MAX_USERS) || 0,
   tz: env.APP_TZ || 'Asia/Jakarta',
   trustProxy: env.TRUST_PROXY !== 'false',
   secureCookie: appUrl.startsWith('https://'),
