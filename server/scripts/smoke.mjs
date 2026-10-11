@@ -64,7 +64,7 @@ try {
 
   // --- pendaftaran dan pairing ---
   let r = await A.call('GET', '/api/public');
-  assert.equal(r.data.firstUser, true);
+  assert.equal(r.data.registrationOpen, true);
   assert.equal(r.data.appName, 'Kuncian Uji');
   r = await A.call('POST', '/api/auth/register', { username: 'dika', email: 'dika@example.com', password: 'pendek', displayName: 'Dika' });
   assert.equal(r.status, 400);
@@ -75,8 +75,6 @@ try {
   assert.equal(r.data.partner, null);
   ok('akun pertama dibuat dan dapat kode undangan');
 
-  r = await B.call('POST', '/api/auth/register', { username: 'rara', email: 'rara@example.com', password: 'passwordku2', displayName: 'Rara' });
-  assert.equal(r.status, 400, 'tanpa kode harus ditolak');
   r = await B.call('POST', '/api/auth/register', { username: 'rara', email: 'rara@example.com', password: 'passwordku2', displayName: 'Rara', inviteCode: 'ZZZZZZ' });
   assert.equal(r.status, 400, 'kode salah harus ditolak');
   r = await B.call('POST', '/api/auth/register', { username: 'rara', email: 'rara@example.com', password: 'passwordku2', displayName: 'Rara', inviteCode: code.toLowerCase() });
@@ -84,8 +82,12 @@ try {
   assert.equal(r.data.partner.displayName, 'Dika');
   const C = client('Orang ketiga');
   r = await C.call('POST', '/api/auth/register', { username: 'tamu', email: 'tamu@example.com', password: 'passwordku3', inviteCode: code });
-  assert.equal(r.status, 403, 'akun ketiga harus ditolak');
-  ok('pairing berdua jalan, akun ketiga ditolak');
+  assert.equal(r.status, 400, 'kode yang sudah dipakai berdua harus ditolak');
+  r = await C.call('POST', '/api/auth/register', { username: 'tamu', email: 'tamu@example.com', password: 'passwordku3', displayName: 'Tamu' });
+  assert.equal(r.status, 200, 'pasangan lain boleh daftar tanpa kode');
+  assert.notEqual(r.data.inviteCode, code, 'pasangan baru dapat kode sendiri');
+  assert.equal(r.data.partner, null);
+  ok('pairing berdua jalan, pasangan ketiga ditolak masuk, pasangan baru terpisah');
 
   r = await A.call('GET', '/api/me');
   assert.equal(r.data.partner.displayName, 'Rara');
