@@ -7,7 +7,7 @@ import Home from './pages/Home.jsx';
 import InstallGuide from './pages/Install.jsx';
 import Message from './pages/Message.jsx';
 import Profile from './pages/Profile.jsx';
-import { Forgot, Login, Register, Reset } from './pages/Auth.jsx';
+import { Forgot, Login, Register, Reset, Verify } from './pages/Auth.jsx';
 import { Link, matchPath, useLoc } from './router.jsx';
 import { Icon } from './ui.jsx';
 import { isIOS, isStandalone } from './util.js';
@@ -33,6 +33,31 @@ function TabBar({ path, unread }) {
         );
       })}
     </nav>
+  );
+}
+
+function VerifyBanner({ email }) {
+  const [state, setState] = useState('idle');
+  const resend = async () => {
+    setState('busy');
+    try {
+      await api.post('/auth/resend-verification');
+      setState('sent');
+    } catch {
+      setState('error');
+    }
+  };
+  return (
+    <div className="notice verify-banner" role="status">
+      <strong>Email belum diverifikasi.</strong> Kami kirim link ke {email}. Cek inbox dan folder spam.{' '}
+      {state === 'sent' ? (
+        <span>Link baru sudah dikirim.</span>
+      ) : (
+        <button type="button" className="link" onClick={resend} disabled={state === 'busy'}>
+          {state === 'busy' ? 'Mengirim…' : state === 'error' ? 'Gagal, coba lagi' : 'Kirim ulang'}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -141,18 +166,21 @@ export default function App() {
     if (path === '/daftar') page = <Register />;
     else if (path === '/lupa') page = <Forgot />;
     else if (path === '/reset') page = <Reset />;
+    else if (path === '/verifikasi') page = <Verify />;
     return <AppCtx.Provider value={ctx}>{page}</AppCtx.Provider>;
   }
 
   const msg = matchPath('/pesan/:id', path);
   let page = <Home />;
-  if (msg) page = <Message key={msg.id} id={msg.id} />;
+  if (path === '/verifikasi') page = <Verify />;
+  else if (msg) page = <Message key={msg.id} id={msg.id} />;
   else if (path === '/tulis') page = <Compose />;
   else if (path === '/sandi') page = <Codebook />;
   else if (path === '/profil') page = <Profile />;
 
   return (
     <AppCtx.Provider value={ctx}>
+      {me.user.emailVerified || path === '/verifikasi' ? null : <VerifyBanner email={me.user.email} />}
       {page}
       <TabBar path={path} unread={unread} />
     </AppCtx.Provider>

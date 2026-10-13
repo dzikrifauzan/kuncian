@@ -75,11 +75,21 @@ CREATE TABLE IF NOT EXISTS codebook (
   meaning TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS email_tokens (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
 `);
+
+// Migrasi: akun yang sudah ada dianggap terverifikasi.
+if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'email_verified')) {
+  db.exec('ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1');
+}
 
 /** Jalankan fn (sinkron) di dalam satu transaksi. */
 export function tx(fn) {

@@ -7,7 +7,8 @@ const [cmd, ...args] = process.argv.slice(2);
 const usage = `Perintah:
   list-users                              tampilkan semua akun dan kode undangan
   reset-password <username> <password>    ganti password (minimal 8 karakter) dan keluarkan semua sesi
-  set-email <username> <email>            ganti email akun`;
+  set-email <username> <email>            ganti email akun (otomatis terverifikasi)
+  verify-email <username>                 tandai email akun sudah terverifikasi`;
 
 function findUser(name) {
   const u = db.prepare('SELECT * FROM users WHERE username = ?').get(String(name || '').toLowerCase());
@@ -20,10 +21,10 @@ function findUser(name) {
 
 if (cmd === 'list-users') {
   const rows = db
-    .prepare('SELECT u.id, u.username, u.email, u.display_name, c.invite_code FROM users u JOIN couples c ON c.id = u.couple_id ORDER BY u.id')
+    .prepare('SELECT u.id, u.username, u.email, u.email_verified, u.display_name, c.invite_code FROM users u JOIN couples c ON c.id = u.couple_id ORDER BY u.id')
     .all();
   if (!rows.length) console.log('Belum ada akun.');
-  for (const r of rows) console.log(`#${r.id}  ${r.username}  <${r.email}>  panggilan: ${r.display_name}  kode undangan: ${r.invite_code}`);
+  for (const r of rows) console.log(`#${r.id}  ${r.username}  <${r.email}>${r.email_verified ? '' : ' (belum verifikasi)'}  panggilan: ${r.display_name}  kode undangan: ${r.invite_code}`);
 } else if (cmd === 'reset-password') {
   const [username, password] = args;
   if (!username || !password || password.length < 8) {
@@ -34,6 +35,10 @@ if (cmd === 'list-users') {
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(await hashSecret(password), u.id);
   db.prepare('DELETE FROM sessions WHERE user_id = ?').run(u.id);
   console.log(`Password "${u.username}" sudah diganti.`);
+} else if (cmd === 'verify-email') {
+  const u = findUser(args[0]);
+  db.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').run(u.id);
+  console.log(`Email "${u.username}" ditandai terverifikasi.`);
 } else if (cmd === 'set-email') {
   const [username, email] = args;
   if (!username || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '')) {
@@ -41,7 +46,7 @@ if (cmd === 'list-users') {
     process.exit(1);
   }
   const u = findUser(username);
-  db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email.toLowerCase(), u.id);
+  db.prepare('UPDATE users SET email = ?, email_verified = 1 WHERE id = ?').run(email.toLowerCase(), u.id);
   console.log(`Email "${u.username}" sekarang ${email.toLowerCase()}.`);
 } else {
   console.log(usage);
