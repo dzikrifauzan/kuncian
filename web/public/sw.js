@@ -1,5 +1,5 @@
 // Service worker: terima notifikasi push dan simpan cadangan halaman untuk dibuka tanpa sinyal.
-const CACHE = 'kuncian-shell-v1';
+const CACHE = 'kuncian-shell-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 
@@ -31,6 +31,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.pathname.startsWith('/assets/')) {
+    // Berkas ber-hash (produksi) aman disimpan selamanya. Berkas tanpa hash (mode dev) selalu ambil yang terbaru.
+    const hashed = /-[A-Z0-9]{8}\.(js|css)$/.test(url.pathname);
+    if (!hashed) return;
     event.respondWith(
       caches.match(req).then(
         (hit) =>

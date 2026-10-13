@@ -1,4 +1,4 @@
-import { config, smtpEnabled } from './config.js';
+import { config, smtpEnabled, verifyRequired } from './config.js';
 import { db, tx } from './db.js';
 import { HttpError } from './http.js';
 import { hashSecret, verifySecret, sha256, randomToken, inviteCode, normalizeAnswer, normalizeKey } from './crypto.js';
@@ -31,13 +31,25 @@ function startSession(ctx, userId) {
   ctx.setCookie(COOKIE, token, { maxAge: Math.floor(SESSION_MS / 1000) });
 }
 
+/** Buat token verifikasi baru dan kirim emailnya. */
+function sendVerification(user) {
+  const token = randomToken();
+  db.prepare('DELETE FROM email_tokens WHERE user_id = ?').run(user.id);
+  db.prepare('INSERT INTO email_tokens (token_hash, user_id, expires_at) VALUES (?, ?, ?)').run(sha256(token), user.id, Date.now() + 24 * HOUR);
+  sendMail({
+    to: user.email,
+    subject: `Verifikasi email ${config.appName}`,
+    text: `Halo ${user.display_name},\n\nTerima kasih sudah mendaftar di ${config.appName}. Buka link ini dalam 24 jam untuk memastikan emailmu benar:\n\n${config.appUrl}/verifikasi?token=${token}\n\nKalau bukan kamu yang mendaftar, abaikan saja email ini.\n`,
+  }).catch((e) => console.warn('[mail] gagal kirim:', e.message));
+}
+
 const getPartner = (user) => db.prepare('SELECT id, display_name FROM users WHERE couple_id = ? AND id != ?').get(user.couple_id, user.id);
 
 function mePayload(u) {
   const partner = getPartner(u);
   const couple = db.prepare('SELECT invite_code FROM couples WHERE id = ?').get(u.couple_id);
   return {
-    user: { id: u.id, username: u.username, email: u.email, displayName: u.display_name, emailNotify: Boolean(u.email_notify) },
+    user: { id: u.id, username: u.username, email: u.email, emailVerified: Boolean(u.email_verified), displayName: u.display_name, emailNotify: Boolean(u.email_notify) },
     partner: partner ? { id: partner.id, displayName: partner.display_name } : null,
     inviteCode: partner ? null : couple.invite_code,
     unread: unreadCount(u.id),
@@ -99,6 +111,7 @@ export function cleanupExpired() {
   const now = Date.now();
   db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(now);
   db.prepare('DELETE FROM reset_tokens WHERE expires_at < ?').run(now);
+  db.prepare('DELETE FROM email_tokens WHERE expires_at < ?').run(now);
 }
 
 export function buildRoutes() {
@@ -146,12 +159,13 @@ export function buildRoutes() {
           coupleId = couple.id;
         }
         const r = db
-          .prepare('INSERT INTO users (couple_id, username, email, display_name, password_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-          .run(coupleId, username, email, displayName, passwordHash, Date.now());
+          .prepare('INSERT INTO users (couple_id, username, email, display_name, password_hash, email_verified, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+          .run(coupleId, username, email, displayName, passwordHash, verifyRequired() ? 0 : 1, Date.now());
         return Number(r.lastInsertRowid);
       });
       startSession(c, userId);
       const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+      if (!user.email_verified) sendVerification(user);
       const partner = getPartner(user);
       if (partner) notifyUser(partner.id, { title: config.appName, body: `${displayName} sudah bergabung. Sekarang kalian bisa saling kirim pesan.`, url: '/', tag: 'joined' });
       return mePayload(user);
@@ -159,6 +173,22 @@ export function buildRoutes() {
       if (/UNIQUE/i.test(String(err.message))) throw new HttpError(409, 'Username atau email itu sudah dipakai.');
       throw err;
     }
+  });
+
+  add('POST', '/api/auth/verify', { limit: authLimit('verify', 20) }, (c) => {
+    const row = db.prepare('SELECT * FROM email_tokens WHERE token_hash = ?').get(sha256(String(c.body?.token || '')));
+    if (!row || row.expires_at < Date.now()) throw new HttpError(400, 'Link verifikasi sudah kedaluwarsa atau tidak valid. Minta link baru dari halaman Profil.');
+    tx(() => {
+      db.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').run(row.user_id);
+      db.prepare('DELETE FROM email_tokens WHERE user_id = ?').run(row.user_id);
+    });
+    return { ok: true };
+  });
+
+  add('POST', '/api/auth/resend-verification', { auth: true, limit: authLimit('resend-verify', 5, HOUR) }, (c) => {
+    if (c.user.email_verified) return { ok: true, already: true };
+    sendVerification(c.user);
+    return { ok: true };
   });
 
   add('POST', '/api/auth/login', { limit: authLimit('login', 20) }, async (c) => {
@@ -200,7 +230,7 @@ export function buildRoutes() {
     if (!row || row.expires_at < Date.now()) throw new HttpError(400, 'Link reset sudah kedaluwarsa. Minta link baru.');
     const hash = await hashSecret(password);
     tx(() => {
-      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, row.user_id);
+      db.prepare('UPDATE users SET password_hash = ?, email_verified = 1 WHERE id = ?').run(hash, row.user_id);
       db.prepare('DELETE FROM sessions WHERE user_id = ?').run(row.user_id);
       db.prepare('DELETE FROM reset_tokens WHERE user_id = ?').run(row.user_id);
     });
@@ -316,6 +346,7 @@ export function buildRoutes() {
     const body = String(b.body || '').trim();
     if (!body) throw new HttpError(400, 'Tulis pesannya dulu.');
     if (body.length > 2000) throw new HttpError(400, 'Pesannya kepanjangan, maksimal 2000 huruf.');
+    if (!c.user.email_verified) throw new HttpError(403, 'Verifikasi emailmu dulu sebelum mengirim pesan. Cek inbox (dan folder spam), atau kirim ulang linknya dari Profil.');
     const partner = getPartner(c.user);
     if (!partner) throw new HttpError(400, 'Pasanganmu belum daftar. Bagikan kode undangan dulu.');
     const mode = b.mode === 'any' ? 'any' : 'all';
